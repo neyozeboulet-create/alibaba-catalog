@@ -74,6 +74,19 @@ function runMigrations(PDO $pdo): void
     }
     
     try {
+        // Extraire le nom de la base depuis la config
+        $dbName = $GLOBALS['config']['db']['name'] ?? 'railway';
+        
+        // Créer la base si elle n'existe pas (Railway peut ne pas créer le nom attendu)
+        try {
+            $pdo->exec("CREATE DATABASE IF NOT EXISTS \`$dbName\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
+        } catch (PDOException $e) {
+            // Ignorer si la base existe déjà
+        }
+        
+        // Connecter à la bonne base
+        $pdo->exec("USE \`$dbName\`");
+        
         // Séparer les statements (gestion basique)
         $statements = array_filter(array_map('trim', explode(';', $sql)));
         
@@ -82,21 +95,25 @@ function runMigrations(PDO $pdo): void
                 continue;
             }
             
-            // Ignorer CREATE DATABASE et USE pour Railway
+            // Ignorer CREATE DATABASE et USE (déjà géré)
             if (stripos($statement, 'CREATE DATABASE') !== false || 
-                stripos($statement, 'USE `') !== false) {
+                stripos($statement, 'USE ') !== false) {
                 continue;
             }
             
-            $pdo->exec($statement);
+            try {
+                $pdo->exec($statement);
+            } catch (PDOException $e) {
+                // Ignorer les erreurs "table already exists" (code 42S01)
+                if ($e->getCode() !== '42S01' && $e->getCode() !== 'HY000') {
+                    error_log('Migration error: ' . $e->getMessage());
+                }
+            }
         }
         
-        error_log('Database migrations executed successfully');
+        error_log('Database migrations executed successfully for database: ' . $dbName);
     } catch (PDOException $e) {
-        // Ignorer les erreurs "table already exists" 
-        if ($e->getCode() !== '42S01' && $e->getCode() !== 'HY000') {
-            error_log('Migration error: ' . $e->getMessage());
-        }
+        error_log('Migration setup error: ' . $e->getMessage());
     }
 }
 
