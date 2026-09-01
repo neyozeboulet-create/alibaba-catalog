@@ -1,0 +1,130 @@
+# Apache .htaccess - Sécurité et réécriture
+# À placer à la racine du projet (si Apache)
+
+# Désactiver l'indexation des dossiers
+Options -Indexes
+
+# Suivre les liens symboliques
+Options +FollowSymLinks
+
+# Activer le module de réécriture
+<IfModule mod_rewrite.c>
+    RewriteEngine On
+    
+    # Base si sous-dossier (décommenter et adapter si nécessaire)
+    # RewriteBase /alibaba-catalog/
+    
+    # Sécurité : Interdire l'accès aux fichiers sensibles
+    RewriteRule ^(config|includes|database\.sql) - [F,L,NC]
+    
+    # Sécurité : Interdire l'accès aux fichiers .git, .env, etc.
+    RewriteRule ^\. - [F,L]
+    
+    # Rediriger admin/login sans slash final
+    RewriteRule ^admin/login$ /admin/login.php [L,R=301]
+    RewriteRule ^admin$ /admin/index.php [L,R=301]
+    
+    # URLs propres optionnelles (décommenter si souhaité)
+    # RewriteRule ^produit/([a-zA-Z0-9_-]+)$ index.php?view=product&sku=$1 [L,QSA]
+    # RewriteRule ^panier$ panier.php [L]
+    # RewriteRule ^commande/valider$ valider.php [L]
+    # RewriteRule ^confirmation$ confirmation.php [L]
+</IfModule>
+
+# Protection des fichiers sensibles
+<FilesMatch "\.(sql|md|gitignore|gitattributes|env|log|ini|conf)$">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</FilesMatch>
+
+# Protection spécifique config/
+<DirectoryMatch "config/">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</DirectoryMatch>
+
+# Protection spécifique includes/
+<DirectoryMatch "includes/">
+    <IfModule mod_authz_core.c>
+        Require all denied
+    </IfModule>
+    <IfModule !mod_authz_core.c>
+        Order allow,deny
+        Deny from all
+    </IfModule>
+</DirectoryMatch>
+
+# Headers de sécurité
+<IfModule mod_headers.c>
+    # HSTS (activer seulement en HTTPS)
+    # Header always set Strict-Transport-Security "max-age=31536000; includeSubDomains"
+    
+    # Protection XSS
+    Header always set X-Content-Type-Options "nosniff"
+    Header always set X-Frame-Options "SAMEORIGIN"
+    Header always set X-XSS-Protection "1; mode=block"
+    
+    # Referrer Policy
+    Header always set Referrer-Policy "strict-origin-when-cross-origin"
+    
+    # Cache pour assets statiques
+    <FilesMatch "\.(css|js|png|jpg|jpeg|gif|ico|svg|woff|woff2)$">
+        Header set Cache-Control "max-age=31536000, public"
+    </FilesMatch>
+    
+    # Pas de cache pour PHP
+    <FilesMatch "\.php$">
+        Header set Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+        Header set Pragma "no-cache"
+        Header set Expires "Wed, 11 Jan 1984 05:00:00 GMT"
+    </FilesMatch>
+</IfModule>
+
+# Compression GZIP
+<IfModule mod_deflate.c>
+    AddOutputFilterByType DEFLATE text/html text/plain text/xml text/css application/javascript application/json
+    AddOutputFilterByType DEFLATE application/x-javascript application/xml application/xhtml+xml
+</IfModule>
+
+# Types MIME
+<IfModule mod_mime.c>
+    AddType application/javascript .js
+    AddType text/css .css
+    AddType image/svg+xml .svg
+    AddType application/font-woff .woff
+    AddType application/font-woff2 .woff2
+</IfModule>
+
+# PHP Settings (si PHP en module Apache)
+<IfModule mod_php.c>
+    # Sécurité
+    php_flag expose_php Off
+    php_flag display_errors Off
+    php_flag log_errors On
+    php_value error_log /var/log/php/alibaba-catalog-error.log
+    
+    # Sessions
+    php_value session.cookie_httponly 1
+    php_value session.cookie_secure 1
+    php_value session.cookie_samesite Lax
+    php_value session.use_strict_mode 1
+    
+    # Upload
+    php_value upload_max_filesize 5M
+    php_value post_max_size 5M
+    php_value max_file_uploads 1
+    
+    # Exécution
+    php_value max_execution_time 30
+    php_value memory_limit 128M
+</IfModule>
