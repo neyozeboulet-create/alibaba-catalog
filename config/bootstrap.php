@@ -39,7 +39,28 @@ function getPDO(): PDO
             // Vérifier que les variables MySQL sont présentes
             if (empty($config['db']['host']) || empty($config['db']['name'])) {
                 error_log('MySQL config missing: host=' . $config['db']['host'] . ', name=' . $config['db']['name']);
-                // Continuer sans DB (retournera une erreur plus tard)
+            }
+            
+            // Force TCP connection (important pour Railway qui utilise des hosts internes)
+            $host = $config['db']['host'];
+            $port = $config['db']['port'];
+            
+            // Si l'hôte n'est pas localhost, utiliser explicitement TCP
+            if ($host !== 'localhost' && $host !== '127.0.0.1') {
+                $dsn = sprintf(
+                    'mysql:host=%s;port=%s;dbname=%s;charset=%s',
+                    $host,
+                    $port,
+                    $config['db']['name'],
+                    $config['db']['charset']
+                );
+            } else {
+                // Pour localhost, utiliser socket unix
+                $dsn = sprintf(
+                    'mysql:unix_socket=/var/run/mysqld/mysqld.sock;dbname=%s;charset=%s',
+                    $config['db']['name'],
+                    $config['db']['charset']
+                );
             }
             
             $pdo = new PDO($dsn, $config['db']['user'], $config['db']['pass'], $config['db']['options']);
