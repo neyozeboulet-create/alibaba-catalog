@@ -117,43 +117,67 @@ function runMigrations(PDO $pdo): void
         // Extraire le nom de la base depuis la config
         $dbName = $GLOBALS['config']['db']['name'] ?? 'railway';
         
-        // Créer la base si elle n'existe pas (Railway peut ne pas créer le nom attendu)
+        // Créer la base si elle n'existe pas
         try {
             $pdo->exec("CREATE DATABASE IF NOT EXISTS \`$dbName\` CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci");
         } catch (PDOException $e) {
             // Ignorer si la base existe déjà
+            error_log('Database may already exist: ' . $e->getMessage());
         }
         
-        // Connecter à la bonne base
-        $pdo->exec("USE \`$dbName\`");
+        // Déconnecter et reconnecter à la bonne base
+        $pdo = null;
+        $dsn = sprintf(
+            'mysql:host=%s;port=%s;dbname=%s;charset=%s',
+            $GLOBALS['config']['db']['host'],
+            $GLOBALS['config']['db']['port'],
+            $dbName,
+            $GLOBALS['config']['db']['charset']
+        );
+        $pdo = new PDO($dsn, $GLOBALS['config']['db']['user'], $GLOBALS['config']['db']['pass'], $GLOBALS['config']['db']['options']);
         
-        // Séparer les statements (gestion basique)
-        $statements = array_filter(array_map('trim', explode(';', $sql)));
+        // Lire le SQL ligne par ligne et exécuter les statements complets
+        $lines = preg_split('/\r\n|\r|\n/', $sql);
+        $currentStatement = '';
         
-        foreach ($statements as $statement) {
-            if (empty($statement) || str_starts_with($statement, '--')) {
+        foreach ($lines as $line) {
+            $line = trim($line);
+            
+            // Ignorer les commentaires
+            if (empty($line) || preg_match('/^--/', $line)) {
                 continue;
             }
             
-            // Ignorer CREATE DATABASE et USE (déjà géré)
-            if (stripos($statement, 'CREATE DATABASE') !== false || 
-                stripos($statement, 'USE ') !== false) {
-                continue;
-            }
+            $currentStatement .= ' ' . $line;
             
-            try {
-                $pdo->exec($statement);
-            } catch (PDOException $e) {
-                // Ignorer les erreurs "table already exists" (code 42S01)
-                if ($e->getCode() !== '42S01' && $e->getCode() !== 'HY000') {
-                    error_log('Migration error: ' . $e->getMessage());
+            // Si la ligne se termine par ;, c'est un statement complet
+            if (preg_match('/;\s*$/', $line)) {
+                $stmt = trim($currentStatement);
+                
+                // Ignorer CREATE DATABASE et USE
+                if (stripos($stmt, 'CREATE DATABASE') === 0 || stripos($stmt, 'USE ') === 0) {
+                    $currentStatement = '';
+                    continue;
                 }
+                
+                // Exécuter le statement
+                try {
+                    $pdo->exec($stmt);
+                } catch (PDOException $e) {
+                    // Ignorer "table already exists" (42S01)
+                    if ($e->getCode() !== '42S01') {
+                        error_log('Migration error: ' . $e->getMessage());
+                    }
+                }
+                
+                $currentStatement = '';
             }
         }
         
-        error_log('Database migrations executed successfully for database: ' . $dbName);
-    } catch (PDOException $e) {
-        error_log('Migration setup error: ' . $e->getMessage());
+        error_log('Database migrations executed successfully for database: ' . $dbName . ' (tables created)');
+        
+    } catch (Exception $e) {
+        error_log('Migration fatal error: ' . $e->getMessage());
     }
 }
 
