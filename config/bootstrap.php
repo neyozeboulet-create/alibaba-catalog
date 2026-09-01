@@ -36,19 +36,38 @@ function getPDO(): PDO
         );
         
         try {
+            // Vérifier que les variables MySQL sont présentes
+            if (empty($config['db']['host']) || empty($config['db']['name'])) {
+                error_log('MySQL config missing: host=' . $config['db']['host'] . ', name=' . $config['db']['name']);
+                // Continuer sans DB (retournera une erreur plus tard)
+            }
+            
             $pdo = new PDO($dsn, $config['db']['user'], $config['db']['pass'], $config['db']['options']);
+            
+            // Test de connexion (MySQL peut mettre du temps à démarrer)
+            try {
+                $pdo->query('SELECT 1');
+            } catch (PDOException $e) {
+                // MySQL pas encore prêt, on continue quand même
+                // La prochaine requête échouera avec un message clair
+                error_log('MySQL not ready yet: ' . $e->getMessage());
+            }
             
             // Auto-migration au premier démarrage (une seule fois par déploiement)
             static $migrated = false;
             if (!$migrated) {
                 $migrated = true;
-                runMigrations($pdo);
+                try {
+                    runMigrations($pdo);
+                } catch (Exception $e) {
+                    error_log('Migration error: ' . $e->getMessage());
+                }
             }
             
         } catch (PDOException $e) {
             // En production, logger l'erreur au lieu de l'afficher
             if ($config['app']['debug']) {
-                die('Erreur de connexion à la base de données : ' . $e->getMessage());
+                die('Erreur de connexion à la base de données : ' . $e->getMessage() . '<br>Host: ' . $config['db']['host'] . ', Port: ' . $config['db']['port'] . ', DB: ' . $config['db']['name']);
             } else {
                 error_log('DB Connection Error: ' . $e->getMessage());
                 die('Service temporairement indisponible. Veuillez réessayer plus tard.');
