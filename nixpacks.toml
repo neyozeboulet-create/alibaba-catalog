@@ -1,62 +1,8 @@
-# Configuration Nixpacks pour Railway
-# https://nixpacks.com/docs
-
-[phases.setup]
-# Packages système nécessaires
-nixPkgs = [
-  "php82",
-  "php82Extensions.pdo_mysql",
-  "php82Extensions.mbstring",
-  "php82Extensions.gd",
-  "php82Extensions.openssl",
-  "php82Extensions.curl",
-  "php82Extensions.intl",
-  "php82Extensions.zip",
-  "composer",
-  "mysql_client"  # Pour migrations si besoin
-]
-
-[phases.install]
-# Installation des dépendances Composer
-cmds = [
-  "composer install --no-dev --optimize-autoloader --no-interaction"
-]
-
-[phases.build]
-# Aucune étape de build spécifique pour PHP pur
-# (pas de Vite/Webpack/Node.js)
-
-[start]
-# Commande de démarrage - PHP built-in server sur le port Railway
-cmd = "php -S 0.0.0.0:$PORT -t ."
+# Railway / Nixpacks — laisser le provider PHP installer Composer.
+# Ne PAS lister "composer" ni "mysql_client" (variables Nix inexistantes).
 
 [variables]
-# Port exposé (Railway injecte $PORT automatiquement)
-PORT = "8080"
+NIXPACKS_PHP_VERSION = "8.2"
 
-# Configuration PHP pour production
-PHP_INI_SCAN_DIR = "/etc/php82/conf.d"
-
-# Variables d'application par défaut (surchargées par Railway)
-APP_DEBUG = "false"
-APP_TIMEZONE = "Africa/Abidjan"
-APP_CURRENCY = "F CFA"
-APP_MARGIN_RATE = "0.10"
-
-# Sécurité - SERONT SURCHARGÉES PAR LES VARIABLES RAILWAY
-# NE PAS METTRE DE VALEURS RÉELLES ICI
-IMPORT_API_TOKEN = "CHANGE_ME_IN_RAILWAY_VARIABLES"
-SESSION_SECRET = "CHANGE_ME_IN_RAILWAY_VARIABLES"
-ADMIN_EMAIL = "admin@example.com"
-
-# Email (optionnel)
-SMTP_HOST = ""
-SMTP_PORT = "587"
-SMTP_USER = ""
-SMTP_PASS = ""
-SMTP_SECURE = "tls"
-MAIL_FROM = "noreply@railway.app"
-MAIL_FROM_NAME = "Alibaba Catalog"
-
-# Mobile Money
-MOBILE_MONEY_NUMBER = "+225 XX XX XX XX"
+[start]
+cmd = "php -S 0.0.0.0:$PORT -t ."
